@@ -6,7 +6,7 @@ A personal Spanish trainer for moving to Mexico. The goal is to be conversationa
 
 ## What's inside
 
-- **Hoy:** day counter, a daily plan of about 90 minutes, a streak, an activity calendar and a level setting (A0–C1).
+- **Lección:** one guided 90-minute lesson a day in six timed steps. It saves as you go, so you can stop and continue later the same day.
 - **Tarjetas:** spaced-repetition flashcards of Mexican Spanish phrases, verbs, connector words and expressions, with audio.
 - **Leer:** readings at your level written by Claude, with tap-to-translate words and comprehension questions.
 - **Conversar:** an AI tutor ("Lupita") who acts out real situations in Mexico and corrects your Spanish.
