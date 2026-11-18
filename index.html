@@ -1,3 +1,17 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1F4FB8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hablemos">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
 <title>Hablemos México</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -223,6 +237,17 @@ nav.tabs button[aria-selected="true"]{color:var(--cobalt)}
 </div></nav>
 
 <script>
+const STANDALONE = !(window.claude && window.claude.use);
+const KEY_LS = "hablemos-api-key";
+const getKey = () => { try{ return localStorage.getItem(KEY_LS)||""; }catch(e){ return ""; } };
+const NO_AI = () => STANDALONE ? "Add your Anthropic API key in Ruta → Ajustes to use the AI tutor and new readings." : "The AI tutor isn't available in this view. Open the page signed in to claude.ai.";
+const aiErr = (e, what) => !e ? `The ${what} didn't come through. Try again.`
+  : e.code==="no_key" ? NO_AI()
+  : e.code==="bad_key" ? "Your API key was rejected. Check it in Ruta → Ajustes."
+  : e.code==="no_credit" ? "Your Anthropic account is out of credit. Add credit at console.anthropic.com."
+  : e.code==="not_granted" ? "This page needs your permission to ask Claude. Allow it from the page's Permissions menu."
+  : e.code==="rate_limited" ? "Too many requests right now. Wait a minute and try again."
+  : `The ${what} didn't come through. Try again.`;
 /* ---------- Content ---------- */
 const RAW = `Sobrevivir|Hola, ¿qué tal?|Hi, how's it going?
 Sobrevivir|Mucho gusto|Nice to meet you
@@ -750,7 +775,7 @@ Always keep the conversation going with a question. If the learner writes in Eng
 Respond ONLY with JSON: {"reply": string (your in-character Spanish line), "translation": string (English of reply), "correction": string (the learner's last message rewritten as a natural Mexican would say it; "" if it was already natural or if this is the opening line), "tip": string (one short English explanation of the most useful fix; "" if none), "vocab": [{"es": string, "en": string}] (0–3 useful words/phrases from your reply worth memorizing at this level)}`;
 }
 async function tutorTurn(){
-  if(!sample){ chat.err="The AI tutor isn't available in this view. Open the page signed in to claude.ai to chat."; render(); return; }
+  if(!sample){ chat.err=NO_AI(); render(); return; }
   chat.busy=true; chat.err=""; render();
   const sc = SCENARIOS.find(s=>s.id===chat.scenario);
   const convo = chat.msgs.map(m=>m.role==="me"?{role:"user",content:m.text}:{role:"assistant",content:JSON.stringify({reply:m.text})});
@@ -763,7 +788,7 @@ async function tutorTurn(){
     if(lastMe && r.correction && r.correction.trim() && r.correction.trim()!==lastMe.text.trim()){ lastMe.fix=r.correction; lastMe.tip=r.tip||""; }
     chat.msgs.push(m); speak(m.text);
   }catch(e){
-    chat.err = e && e.code==="not_granted" ? "The tutor needs your permission to ask Claude. Allow it from this page's Permissions menu." : e && e.code==="rate_limited" ? "Too many messages at once. Wait a minute and send again." : "The tutor didn't answer. Send your message again.";
+    chat.err = aiErr(e, "tutor's reply");
   }
   chat.busy=false; render(); scrollChat();
 }
@@ -781,7 +806,7 @@ function renderChat(){
     V.innerHTML = `<div class="stack">
       <div><div class="eyebrow">Conversar · nivel ${S.level}</div><h1 style="font-size:28px;margin-top:4px">¿Dónde practicamos hoy?</h1>
       <p class="muted" style="margin:6px 0 0">Pick a scene. Lupita, your tutor from CDMX, plays the other person, corrects your mistakes, and speaks at your level.${dict?" Tap the mic to answer out loud.":""}</p></div>
-      ${!sample?`<div class="notice">The AI tutor connects once this page loads inside claude.ai. Everything else works offline.</div>`:""}
+      ${!sample?`<div class="notice">${NO_AI()}</div>`:""}
       <div class="scen">${SCENARIOS.map(s=>`<button data-sc="${s.id}"><b>${s.t}</b><span>${s.d}</span><span class="num">${s.lvl}+</span></button>`).join("")}</div>
     </div>`;
     V.querySelectorAll("[data-sc]").forEach(b=>b.onclick=()=>{ chat.scenario=b.dataset.sc; chat.msgs=[]; render(); tutorTurn(); });
@@ -828,7 +853,7 @@ function markText(text, gl){
   return esc(out).replace(/\u0001(\d+)\u0002/g,(m,i)=>{const h=hits[+i]; return `<button class="gw" data-gi="${h.gi}" aria-pressed="${rd.sel===h.gi}">${esc(h.w)}</button>`;});
 }
 async function genReading(){
-  if(!sample){ rd.err="New readings are written by Claude, which connects once this page loads inside claude.ai. The three readings below work anywhere."; render(); return; }
+  if(!sample){ rd.err=NO_AI()+" The three readings below work without it."; render(); return; }
   rd.busy=true; rd.err=""; render();
   const prompt = `Write an original Spanish reading for an English speaker who lives in Mexico (Mexico City), CEFR level ${S.level}. Topic: ${rd.topic}.
 About ${WORDS[S.level]} words in 2–4 short paragraphs. Use natural Mexican Spanish and vocabulary appropriate to ${S.level}${S.level==="A0"||S.level==="A1"?" (present tense and very common words, ir a + infinitive, a few simple past forms)":""}. Make it concrete and useful for daily life in Mexico; it can be a story, diary entry, message, article or dialogue.
@@ -840,7 +865,7 @@ Return ONLY JSON: {"title": string (Spanish), "kind": string (one word in Spanis
     S.lib.unshift(item); S.lib = S.lib.slice(0,15); save();
     openReading(item.id);
   }catch(e){
-    rd.err = e && e.code==="not_granted" ? "Writing readings needs permission to ask Claude. Allow it from this page's Permissions menu." : e && e.code==="rate_limited" ? "Too many requests right now. Try again in a minute." : "The reading didn't come through. Try again.";
+    rd.err = aiErr(e, "reading");
   }
   rd.busy=false; render();
 }
@@ -939,6 +964,14 @@ function renderRuta(){
         <div><span style="font-weight:600">Series mexicanas</span><div>Club de Cuervos, La Casa de las Flores, Luis Miguel: la serie. Use Spanish subtitles from month 4.</div></div>
       </div>
     </section>
+    ${STANDALONE?`<section class="card stack" style="gap:12px">
+      <h2 style="font-size:18px">Ajustes · AI tutor</h2>
+      <p class="small muted" style="margin:0">The tutor and new readings use Claude through your own Anthropic API key. Get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> and add some credit. The key stays on this device only and is sent only to Anthropic. A full day's lesson usually costs well under a dollar.</p>
+      <label class="field" for="apiKey">Anthropic API key
+        <input type="password" id="apiKey" autocomplete="off" placeholder="sk-ant-…" value="${esc(getKey())}"></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn primary" id="saveKey">Guardar</button>${getKey()?`<button class="btn" id="delKey">Quitar</button>`:""}<span class="small muted" id="keyMsg">${getKey()?"Key saved on this device.":"No key yet."}</span></div>
+      <p class="small muted" style="margin:0">Progress in this version is saved in this browser only. Use the same phone or computer each day.</p>
+    </section>`:""}
     <section class="card stack" style="gap:12px">
       <label class="field" for="startDate">Fecha de inicio (day 1 of your year)
         <input type="date" id="startDate" value="${S.start}"></label>
@@ -946,6 +979,8 @@ function renderRuta(){
     </section>
   </div>`;
   V.querySelectorAll("[data-ms]").forEach(b=>b.onclick=()=>{ S.ms[b.dataset.ms]=!S.ms[b.dataset.ms]; save(); render(); });
+  const sk=V.querySelector("#saveKey"); if(sk) sk.onclick=()=>{ const v=V.querySelector("#apiKey").value.trim(); try{ localStorage.setItem(KEY_LS,v); }catch(e){} sample = v ? makeApiSample() : null; render(); };
+  const dk=V.querySelector("#delKey"); if(dk) dk.onclick=()=>{ try{ localStorage.removeItem(KEY_LS); }catch(e){} sample=null; render(); };
   V.querySelector("#startDate").onchange=e=>{ if(e.target.value){ S.start=e.target.value; save(); render(); } };
 }
 
@@ -962,7 +997,70 @@ micBtn.onclick=()=>{
 
 render();
 
+/* ---------- Standalone mode (GitHub Pages): browser speech + own API key ---------- */
+async function callClaude(messages, effort){
+  const key = getKey(); if(!key) throw {code:"no_key"};
+  let r;
+  try{
+    r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2026-10-21",
+               "anthropic-beta":"server-side-fallback-2026-07-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-opus-5-5", max_tokens:16000, output_config:{effort}, fallbacks:"default", messages})});
+  }catch(e){ throw {code:"upstream_error"}; }
+  if(r.status===401 || r.status===403) throw {code:"bad_key"};
+  if(r.status===429) throw {code:"rate_limited"};
+  if(!r.ok){ const t = await r.text().catch(()=>""); throw {code: /credit|billing/i.test(t)?"no_credit":"upstream_error"}; }
+  const j = await r.json();
+  if(j.stop_reason==="refusal") throw {code:"refusal"};
+  return (j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+}
+function makeApiSample(){
+  const norm = input => typeof input==="string" ? [{role:"user",content:input}] : input;
+  const f = async (input) => ({text: await callClaude(norm(input),"low"), truncated:false});
+  f.json = async (input) => { const t = await callClaude(norm(input),"low"); const m = t.match(/\{[\s\S]*\}/); if(!m) throw {code:"invalid_json"}; return JSON.parse(m[0]); };
+  return f;
+}
+function makeWebTTS(){
+  if(!("speechSynthesis" in window)) return null;
+  const voice = () => { const vs = speechSynthesis.getVoices(); return vs.find(v=>/^es[-_]MX/i.test(v.lang)) || vs.find(v=>/^es[-_](US|419)/i.test(v.lang)) || vs.find(v=>/^es/i.test(v.lang)) || null; };
+  const one = (text, rate) => new Promise((res,rej)=>{ const u = new SpeechSynthesisUtterance(text); u.lang="es-MX"; const v=voice(); if(v) u.voice=v; u.rate=rate||1; u.onend=()=>res(); u.onerror=()=>rej({code:"stopped"}); speechSynthesis.speak(u); });
+  return {
+    speak(text, opts={}){ speechSynthesis.cancel(); const lines = Array.isArray(text) ? text.map(l=>l.text) : [text]; return lines.reduce((p,l)=>p.then(()=>one(l, opts.rate)), Promise.resolve()); },
+    stop(){ speechSynthesis.cancel(); }
+  };
+}
+function makeWebDictation(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if(!SR) return null;
+  let rec = null, state = "idle"; const fin = [], st = [];
+  const set = (s, reason) => { state = s; st.forEach(h=>h({state:s, reason})); };
+  return {
+    start(){ return new Promise((res,rej)=>{
+      rec = new SR(); rec.lang = "es-MX"; rec.continuous = true; rec.interimResults = false;
+      rec.onstart = () => { set("listening"); res(); };
+      rec.onresult = e => { for(let i=e.resultIndex;i<e.results.length;i++) if(e.results[i].isFinal) fin.forEach(h=>h({text:" "+e.results[i][0].transcript.trim()})); };
+      rec.onerror = e => { if(e.error==="not-allowed" || e.error==="service-not-allowed") rej({code:"not_granted"}); };
+      rec.onend = () => { rec = null; set("idle","stopped"); };
+      set("starting"); try{ rec.start(); }catch(e){ set("idle","upstream_error"); rej({code:"upstream_error"}); }
+    }); },
+    stop(){ if(rec) rec.stop(); return Promise.resolve(); },
+    active(){ return state!=="idle"; },
+    onFinal(h){ fin.push(h); }, onState(h){ st.push(h); }, onPartial(){}
+  };
+}
+function bootStandalone(){
+  tts = makeWebTTS(); dict = makeWebDictation(); sample = getKey() ? makeApiSample() : null;
+  if(dict){
+    micBtn.hidden = false;
+    const ta = document.getElementById("chatIn");
+    dict.onFinal(({text})=>{ ta.value = ta.value ? ta.value+text : text.trimStart(); });
+    dict.onState(({state})=>micBtn.classList.toggle("live", state!=="idle"));
+  }
+  setSync("En este dispositivo");
+  render();
+}
+
 /* ---------- Boot capabilities ---------- */
+if(STANDALONE) bootStandalone();
 (async()=>{
   if(!window.claude || !window.claude.use) return;
   const [u, d, tt, di, sa] = await Promise.all(["user","db","tts","dictation","sample"].map(n=>window.claude.use(n).catch(()=>null)));
@@ -987,3 +1085,6 @@ render();
   sessQ=null; cur=null; render();
 })();
 </script>
+
+</body>
+</html>
